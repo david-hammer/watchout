@@ -1,71 +1,85 @@
-// start slingin' some d3 here.
-var width = 700,
-height = 450,
-nBlobs = 31;
+var SPEC = {
+  width: 700,
+  height: 450,
+  nBlobs: 31,
+  data: [],
+  svg: null,
+  background: null,
+  currentScore: 0,
+  highScore: 0,
+  collisions: 0,
+  recentCollision: false,
+  playerRadius: 10,
+  enemyRadius: 7
+};
 
-var svg = d3.select("body").append("svg")
-.attr("width", width)
-.attr("height", height);
+//create svg
+SPEC.svg = d3.select("body").append("svg")
+            .attr("width", SPEC.width)
+            .attr("height", SPEC.height);
+
+SPEC.background = SPEC.svg.append("rect")
+            .attr("width", SPEC.width)
+            .attr("height", SPEC.height)
+            .attr("fill", "white");
+
 
 // initialize data
-var data = _.map(_.range(nBlobs), function(b){
+SPEC.data= _.map(_.range(SPEC.nBlobs), function(b){
   return {
     id: b,
-    x: (b === 0) ? 0.5 * width : Math.random() * width,
-    y: (b === 0) ? 0.5 * height : Math.random() * height,
-    r: (b === 0) ? 10 : 7
+    x: (b === 0) ? 0.5 * SPEC.width : Math.random() * SPEC.width,
+    y: (b === 0) ? 0.5 * SPEC.height : Math.random() * SPEC.height,
+    r: (b === 0) ? SPEC.playerRadius : SPEC.enemyRadius
   };
 });
 
-var scoreData = [0,0,0];
+//populate game
+SPEC.svg.selectAll("circle")
+  .data(SPEC.data)
+  .enter()
+  .append("circle")
+  .attr("class", function(d){
+    return (d.id === 0) ? "player" : "enemy";
+  })
+  .attr("cx", function(d){
+    return d.x;
+  })
+  .attr("cy", function(d){
+    return d.y;
+  })
+  .attr("r", function(d){
+    return d.r;
+  });
 
-var enemies = data.slice(1);
+//make player dragable
+SPEC.svg.selectAll(".player")
+  .call(d3.behavior.drag().on("drag", function (d) {
+      d.x = Math.min(Math.max(d3.event.x,0+d.r),SPEC.width-d.r);
+      d.y = Math.min(Math.max(d3.event.y,0+d.r),SPEC.height-d.r);
+      d3.select(this).attr("cx", d.x);
+      d3.select(this).attr("cy", d.y);
+    }));
 
-var drag = d3.behavior.drag().on("drag", dragmove);
+//begin game
+setInterval(moveEnemies,1500);
+setInterval(checkCollisions.bind(null,SPEC.svg.selectAll(".enemy")),10);
 
-function dragmove(d) {
-  d.x = d3.event.x;
-  d.y = d3.event.y;
-  d3.select(this).attr("cx", d.x);
-  d3.select(this).attr("cy", d.y);
-};
-
-svg.selectAll("circle")
-.data(data)
-.enter()
-.append("circle")
-.attr("class", function(d){
-  return (d.id === 0) ? "player" : "enemy";
-})
-.attr("cx", function(d){
-  return d.x;
-})
-.attr("cy", function(d){
-  return d.y;
-})
-.attr("r", function(d){
-  return d.r;
-});
-
-svg.selectAll(".player")
-.call(drag);
-
-
-var moveEnemies = function() {
-
-  data = _.map(data, function(d, index){
+function moveEnemies() {
+  //update enemy data
+  SPEC.data = _.map(SPEC.data, function(d, index){
     if (index === 0){
       return d;
-    } else{
-    return {
-      x: Math.random() * width,
-      y: Math.random() * height
-    };
-  }
-    });
+    } else {
+      return {
+          x: Math.random() * SPEC.width,
+          y: Math.random() * SPEC.height
+        };
+    }
+  });
 
-    svg.selectAll(".enemy")
-    .data(data.slice(1))
+    SPEC.svg.selectAll(".enemy")
+    .data(SPEC.data.slice(1))
     .transition().duration(1250)
     .attr("cx", function(d){
       return d.x;
@@ -73,61 +87,44 @@ var moveEnemies = function() {
     .attr("cy", function(d){
       return d.y;
     });
+}
 
-};
+function checkCollisions(enemies) {
+  var player = SPEC.data[0];
+  if (!SPEC.recentCollision){
+    SPEC.currentScore++;
+  }
+  d3.select(".current > span").text(SPEC.currentScore);
 
-setInterval(moveEnemies,1500);
-
-
-// /**** increment current score ****/
-// var currentScoreData = [0];
-// var currentScore = d3.select(".current > span")
-//                   .data(currentScoreData)
-//                   .text(function(d){return d;});
-// console.log(currentScore);
-// var incrementScore = function(currentScoreData, currentScore){
-//   currentScoreData[0]++;
-//   console.log(currentScoreData[0]);
-//   console.log(currentScore);
-//   currentScore.text(function(d){return d;});
-
-// };
-
-// setInterval(incrementScore.bind(null, currentScoreData, currentScore),1000);
-// /******/
-
-var currentScore = 0;
-var highScore = 0;
-var collisions = 0;
-var checkCollisions = function(player,enemies,scoreboard) {
-  currentScore++;
-  d3.select(".current > span").text(currentScore);
-
-  enemies.each(function(d, i)
+  enemies.each(function()
   {
     var enemy = d3.select(this);
     var dx = player.x - enemy.attr("cx");
     var dy = player.y - enemy.attr("cy");
-    var minDist =  player.r + +(enemy.attr("r"));
+    var minDist =  player.r + Number(enemy.attr("r"));
     var hasCollision =  Math.sqrt(dx * dx + dy * dy) < minDist;
 
-    if (hasCollision){
+    if (hasCollision && !SPEC.recentCollision){
 
-      highScore =  (currentScore > highScore) ? currentScore : highScore;
-      currentScore = 0;
-      collisions++;
-      d3.select(".high > span").text(highScore);
-      d3.select(".collisions > span").text(collisions);
+      SPEC.recentCollision = true;
+      setTimeout(function(){
+        SPEC.recentCollision =  false;
+      }, 1000);
+
+      SPEC.highScore =  (SPEC.currentScore > SPEC.highScore) ?
+                        SPEC.currentScore : SPEC.highScore;
+      SPEC.currentScore = 0;
+      SPEC.collisions++;
+      d3.select(".high > span").text(SPEC.highScore);
+      d3.select(".collisions > span").text(SPEC.collisions);
+
+      //flash background
+      SPEC.background.transition().duration(50)
+        .attr("fill","red")
+        .transition().duration(950)
+        .attr("fill","white");
     }
-
   });
-};
+}
 
-var enemies = svg.selectAll(".enemy");
-
-var scoreboard = d3.selectAll(".scoreboard > div > span")
-                .data(scoreData);
-
-
-setInterval(checkCollisions.bind(null,data[0],enemies,scoreboard),10);
 

@@ -4,10 +4,10 @@
 Feel free to use it if you like. */
 
 .enemy {
-  fill:red;
+  fill:black;
 }
 
 .player {
-  fill:green;
+  fill:purple;
   cursor: pointer;
 }
